@@ -1,14 +1,26 @@
-// ... (imports) ...
-import { db } from "./db";
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
 // === INIZIO MODIFICA ===
-// Aggiungi 'users' per avere il tipo corretto
-import { users, SafeUser } from "@shared/schema";
+// Importa i moduli CJS come namespace per la compatibilità con esbuild ESM
+import * as sessionNs from "express-session";
+import * as ConnectPgSimpleNs from "connect-pg-simple";
+// @ts-ignore: Accedi all'export .default per i moduli CJS
+const session = sessionNs.default;
+// @ts-ignore: Accedi all'export .default per i moduli CJS
+const ConnectPgSimple = ConnectPgSimpleNs.default;
 // === FINE MODIFICA ===
+import bcrypt from "bcryptjs";
+import { db } from "./db";
+import { users, SafeUser } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { type Express } from "express";
 
-// ... (configurazione store) ...
-export const PgStore = ConnectPgSimple(session);
+if (!process.env.SESSION_SECRET) {
+  console.warn("ATTENZIONE: SESSION_SECRET non è impostato. Usare un valore di default per lo sviluppo.");
+  // throw new Error("SESSION_SECRET must be set in environment variables");
+}
+
+export const PgStore = ConnectPgSimple(session); // Questa riga ora funzionerà
 const sessionStore = new PgStore({
   conString: process.env.DATABASE_URL,
   tableName: "sessions", 
@@ -16,9 +28,8 @@ const sessionStore = new PgStore({
 
 
 export function setupAuth(app: Express) {
-  // ... (app.use(session...)) ...
   app.use(
-    session({
+    session({ // 'session' qui è la funzione importata correttamente
       store: sessionStore,
       secret: process.env.SESSION_SECRET || 'dev-secret-key', // Usa una variabile d'ambiente in produzione!
       resave: false,
@@ -35,7 +46,7 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // ... (passport.use(new LocalStrategy...)) ...
+  // Configura la strategia local
   passport.use(
     new LocalStrategy({ usernameField: "email" }, async (email, password, done) => {
       try {
@@ -64,18 +75,14 @@ export function setupAuth(app: Express) {
   // Deserializzazione utente dalla sessione
   passport.deserializeUser(async (id: number, done) => {
     try {
-      // === INIZIO MODIFICA ===
-      // Seleziona esplicitamente per assicurarti che theme_color sia incluso
       const [user] = await db.select({
         id: users.id,
         email: users.email,
         theme_color: users.theme_color
       }).from(users).where(eq(users.id, id)).limit(1);
-      // === FINE MODIFICA ===
       
       if (user) {
-        // Ora non c'è più hashed_password da rimuovere
-        done(null, user as SafeUser); // Il tipo corrisponde a SafeUser
+        done(null, user as SafeUser);
       } else {
         done(new Error("Utente non trovato"), null);
       }

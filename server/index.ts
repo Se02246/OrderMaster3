@@ -1,77 +1,42 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import { setupAuth } from "./auth"; // Importa la configurazione auth
-
-const app = express();
-
+import 'dotenv/config';
 // === INIZIO MODIFICA ===
-// Informa Express che si trova dietro un proxy (Render)
-// e di fidarsi delle intestazioni come X-Forwarded-Proto (per HTTPS)
-app.set('trust proxy', 1);
+// Importa 'express' come namespace per compatibilità ESM/CJS
+import * as expressNs from 'express';
+// @ts-ignore: Accedi all'export .default
+const express = expressNs.default;
+// Importa i tipi separatamente
+import { type Express } from "express";
 // === FINE MODIFICA ===
+import { setupVite } from './vite';
+import { registerRoutes } from './routes';
+import { setupAuth } from './auth';
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+async function startServer() {
+  const app: Express = express(); // Questa riga ora funzionerà
+  const port = process.env.PORT || 3000;
 
-// !!! IMPORTANTE: Configura l'autenticazione PRIMA delle route API
-setupAuth(app);
+  // Middleware per il parsing del corpo JSON
+  // Nota: express.json() è un middleware integrato
+  app.use(express.json());
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
-
-(async () => {
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
+  // Setup autenticazione (Passport.js e sessioni)
+  setupAuth(app);
   
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
+  // Setup route API
+  await registerRoutes(app);
+
+  // Setup Vite in sviluppo
+  if (process.env.NODE_ENV !== 'production') {
+    await setupVite(app);
   }
 
-  // Usa la porta fornita da Render (process.env.PORT)
-  const port = process.env.PORT || 5000;
-  
-  server.listen({
-    port,
-    host: "0.0.0.0", // Ascolta su tutti gli indirizzi IP (necessario per Render)
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`); // Registrerà la porta corretta usata
+  // Avvia il server
+  app.listen(port, () => {
+    console.log(`🚀 Server in ascolto su http://localhost:${port}`);
   });
-})();
+}
+
+startServer().catch(err => {
+  console.error("Errore fatale durante l'avvio del server:", err);
+  process.exit(1);
+});

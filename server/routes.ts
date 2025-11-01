@@ -326,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(apartments);
     } catch (error) {
       console.error("Error fetching calendar data:", error);
-      res.status(5G00).json({ message: "Error fetching calendar data" });
+      res.status(500).json({ message: "Error fetching calendar data" });
     }
   });
 

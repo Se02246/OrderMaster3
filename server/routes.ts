@@ -1,23 +1,11 @@
-import express, { type Express, Request, Response, NextFunction } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { z } from "zod";
-import { 
-  insertApartmentSchema, 
-  insertEmployeeSchema, 
-  apartmentWithEmployeesSchema,
-  insertUserSchema,
-  SafeUser,
-  users,
-} from "@shared/schema";
-import { fromZodError } from "zod-validation-error";
+// ... (imports) ...
 import { isAuthenticated } from "./middleware";
 import passport from "passport";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
-// Helper per ottenere l'ID utente in modo sicuro
+// ... (getUserId helper) ...
 function getUserId(req: Request): number {
   const user = req.user as SafeUser;
   if (!user || !user.id) {
@@ -31,13 +19,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const authRouter = express.Router();
 
   // === Route di Autenticazione (Pubbliche) ===
-  // ... (nessuna modifica qui)
+  // ... (tutte le route in authRouter) ...
   authRouter.post("/register", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
         return res.status(400).json({ message: "Email e password sono obbligatori." });
       }
+      
+      // === INIZIO MODIFICA ===
+      // Aggiungi un default per theme_color se non fornito
+      const themeColorDefault = '210 40% 98%';
+      // === FINE MODIFICA ===
 
       const [existingUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
       if (existingUser) {
@@ -48,6 +41,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validationResult = insertUserSchema.safeParse({
         email,
         hashed_password: hashedPassword,
+        theme_color: themeColorDefault, // Usa il default
       });
 
       if (!validationResult.success) {
@@ -96,8 +90,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // === Route API Protette ===
   
   router.use(isAuthenticated);
+  
+  // === INIZIO MODIFICA ===
+  // Endpoint per aggiornare il tema
+  router.put("/auth/theme", async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { theme_color } = req.body;
+
+      if (typeof theme_color !== 'string' || theme_color.length > 50) {
+        return res.status(400).json({ message: "Formato colore non valido." });
+      }
+      
+      const updatedUser = await storage.updateUserTheme(userId, theme_color);
+      
+      // Aggiorna l'utente nella sessione
+      req.login(updatedUser, (err) => {
+        if (err) {
+          console.error("Errore nell'aggiornare la sessione:", err);
+          return res.status(500).json({ message: "Errore durante l'aggiornamento della sessione." });
+        }
+        res.json(updatedUser);
+      });
+
+    } catch (error) {
+      console.error("Error updating theme:", error);
+      res.status(500).json({ message: "Error updating theme" });
+    }
+  });
+  // === FINE MODIFICA ===
 
   // Apartments endpoints
+  // ... (tutte le altre route /api/apartments, /api/employees, etc.) ...
   router.get("/apartments", async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req);
@@ -138,16 +162,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validationResult = apartmentWithEmployeesSchema.safeParse(req.body);
       
       if (!validationResult.success) {
-        // === INIZIO MODIFICA ===
-        // Aggiungiamo un fallback: se 'errorMessage' è undefined,
-        // invia un messaggio generico.
         const errorMessage = fromZodError(validationResult.error).message;
         return res.status(400).json({ message: errorMessage || "Dati non validi." });
-        // === FINE MODIFICA ===
       }
       
-      // validationResult.data ora conterrà 'employee_ids' come number[]
-      // grazie alla coercizione in shared/schema.ts
       const { employee_ids, ...apartmentData } = validationResult.data;
       
       const apartment = await storage.createApartment(
@@ -174,10 +192,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validationResult = apartmentWithEmployeesSchema.safeParse(req.body);
       
       if (!validationResult.success) {
-        // === INIZIO MODIFICA (Come sopra) ===
         const errorMessage = fromZodError(validationResult.error).message;
         return res.status(400).json({ message: errorMessage || "Dati non validi." });
-        // === FINE MODIFICA ===
       }
       
       const { employee_ids, ...apartmentData } = validationResult.data;
@@ -252,10 +268,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validationResult = insertEmployeeSchema.safeParse(req.body);
       
       if (!validationResult.success) {
-        // === INIZIO MODIFICA (Come sopra) ===
         const errorMessage = fromZodError(validationResult.error).message;
         return res.status(400).json({ message: errorMessage || "Dati non validi." });
-        // === FINE MODIFICA ===
       }
       
       const employee = await storage.createEmployee(

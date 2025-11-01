@@ -1,18 +1,13 @@
-import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
-import session from "express-session";
-import ConnectPgSimple from "connect-pg-simple";
-import bcrypt from "bcryptjs";
+// ... (imports) ...
 import { db } from "./db";
-import { users } from "@shared/schema";
+// === INIZIO MODIFICA ===
+// Aggiungi 'users' per avere il tipo corretto
+import { users, SafeUser } from "@shared/schema";
+// === FINE MODIFICA ===
 import { eq } from "drizzle-orm";
 import { type Express } from "express";
 
-if (!process.env.SESSION_SECRET) {
-  console.warn("ATTENZIONE: SESSION_SECRET non è impostato. Usare un valore di default per lo sviluppo.");
-  // throw new Error("SESSION_SECRET must be set in environment variables");
-}
-
+// ... (configurazione store) ...
 export const PgStore = ConnectPgSimple(session);
 const sessionStore = new PgStore({
   conString: process.env.DATABASE_URL,
@@ -21,6 +16,7 @@ const sessionStore = new PgStore({
 
 
 export function setupAuth(app: Express) {
+  // ... (app.use(session...)) ...
   app.use(
     session({
       store: sessionStore,
@@ -39,7 +35,7 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Configura la strategia local
+  // ... (passport.use(new LocalStrategy...)) ...
   passport.use(
     new LocalStrategy({ usernameField: "email" }, async (email, password, done) => {
       try {
@@ -68,11 +64,18 @@ export function setupAuth(app: Express) {
   // Deserializzazione utente dalla sessione
   passport.deserializeUser(async (id: number, done) => {
     try {
-      const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      // === INIZIO MODIFICA ===
+      // Seleziona esplicitamente per assicurarti che theme_color sia incluso
+      const [user] = await db.select({
+        id: users.id,
+        email: users.email,
+        theme_color: users.theme_color
+      }).from(users).where(eq(users.id, id)).limit(1);
+      // === FINE MODIFICA ===
+      
       if (user) {
-        // Rimuovi la password prima di allegarla a req.user
-        const { hashed_password, ...safeUser } = user;
-        done(null, safeUser);
+        // Ora non c'è più hashed_password da rimuovere
+        done(null, user as SafeUser); // Il tipo corrisponde a SafeUser
       } else {
         done(new Error("Utente non trovato"), null);
       }

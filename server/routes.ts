@@ -1,11 +1,30 @@
-// ... (imports) ...
+// === INIZIO MODIFICA ===
+// Importa 'express' come namespace per compatibilità ESM/CJS
+import * as expressNs from 'express';
+// @ts-ignore: Accedi all'export .default
+const express = expressNs.default;
+// Importa i tipi separatamente
+import { type Express, Request, Response, NextFunction } from "express";
+// === FINE MODIFICA ===
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { z } from "zod";
+import { 
+  insertApartmentSchema, 
+  insertEmployeeSchema, 
+  apartmentWithEmployeesSchema,
+  insertUserSchema,
+  SafeUser,
+  users,
+} from "@shared/schema";
+import { fromZodError } from "zod-validation-error";
 import { isAuthenticated } from "./middleware";
 import passport from "passport";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
-// ... (getUserId helper) ...
+// Helper per ottenere l'ID utente in modo sicuro
 function getUserId(req: Request): number {
   const user = req.user as SafeUser;
   if (!user || !user.id) {
@@ -15,11 +34,11 @@ function getUserId(req: Request): number {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  const router = express.Router();
+  const router = express.Router(); // Questa riga ora funzionerà
   const authRouter = express.Router();
 
   // === Route di Autenticazione (Pubbliche) ===
-  // ... (tutte le route in authRouter) ...
+  // ... (tutto il resto del file da qui in poi rimane invariato) ...
   authRouter.post("/register", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { email, password } = req.body;
@@ -27,10 +46,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email e password sono obbligatori." });
       }
       
-      // === INIZIO MODIFICA ===
-      // Aggiungi un default per theme_color se non fornito
       const themeColorDefault = '210 40% 98%';
-      // === FINE MODIFICA ===
 
       const [existingUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
       if (existingUser) {
@@ -41,7 +57,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validationResult = insertUserSchema.safeParse({
         email,
         hashed_password: hashedPassword,
-        theme_color: themeColorDefault, // Usa il default
+        theme_color: themeColorDefault,
       });
 
       if (!validationResult.success) {
@@ -91,8 +107,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   router.use(isAuthenticated);
   
-  // === INIZIO MODIFICA ===
-  // Endpoint per aggiornare il tema
   router.put("/auth/theme", async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req);
@@ -104,7 +118,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const updatedUser = await storage.updateUserTheme(userId, theme_color);
       
-      // Aggiorna l'utente nella sessione
       req.login(updatedUser, (err) => {
         if (err) {
           console.error("Errore nell'aggiornare la sessione:", err);
@@ -118,10 +131,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error updating theme" });
     }
   });
-  // === FINE MODIFICA ===
 
   // Apartments endpoints
-  // ... (tutte le altre route /api/apartments, /api/employees, etc.) ...
   router.get("/apartments", async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req);
@@ -315,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(apartments);
     } catch (error) {
       console.error("Error fetching calendar data:", error);
-      res.status(500).json({ message: "Error fetching calendar data" });
+      res.status(5G00).json({ message: "Error fetching calendar data" });
     }
   });
 

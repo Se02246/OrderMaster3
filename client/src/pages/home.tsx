@@ -9,14 +9,39 @@ import { Input } from "@/components/ui/input";
 // --- 2. MODIFICA: Rimuovi l'importazione di queryClient ---
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+// === INIZIO MODIFICA ===
+// Importa useAuth
+import { useAuth } from "@/contexts/AuthContext";
+// === FINE MODIFICA ===
 import { ApartmentWithAssignedEmployees, Employee } from "@shared/schema";
 import { ApartmentFormData } from "@/components/ui/modals/types";
 import { Palette } from "lucide-react";
 
+// === INIZIO MODIFICA ===
+// Helper per convertire HSL string (es. "210 40% 98%") in Hex
+function hslToHex(hslStr: string) {
+  if (!hslStr) return "#000000";
+  const [h, s, l] = hslStr.match(/\d+(\.\d+)?/g)?.map(Number) || [0, 0, 0];
+  if (h === undefined || s === undefined || l === undefined) return "#000000";
+  
+  const lPercent = l / 100;
+  const a = (s * Math.min(lPercent, 1 - lPercent)) / 100;
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const color = lPercent - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+// === FINE MODIFICA ===
+
 export default function Home() {
   const { toast } = useToast();
-  // --- 3. MODIFICA: Ottieni il client tramite il hook ---
   const queryClient = useQueryClient();
+  // === INIZIO MODIFICA ===
+  // Ottieni 'user' e 'updateThemeColor' dal contesto
+  const { user, updateThemeColor } = useAuth();
+  // === FINE MODIFICA ===
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"date" | "name">("date");
   const [isApartmentModalOpen, setIsApartmentModalOpen] = useState(false);
@@ -25,9 +50,14 @@ export default function Home() {
   const [apartmentToDelete, setApartmentToDelete] = useState<{ id: number, name: string } | null>(null);
   const colorInputRef = useRef<HTMLInputElement>(null);
 
+  // === INIZIO MODIFICA ===
+  // Calcola il colore iniziale per il picker
+  const initialHexColor = user?.theme_color ? hslToHex(user.theme_color) : "#000000";
+
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newColor = e.target.value;
-    // Convert hex to HSL and set CSS variable
+    const newColor = e.target.value; // Questo è un HEX (es. #FF0000)
+    
+    // Converti hex in HSL string (come nel tuo codice originale)
     let r = 0, g = 0, b = 0;
     if (newColor.length == 4) {
       r = parseInt(newColor[1] + newColor[1], 16);
@@ -57,15 +87,20 @@ export default function Home() {
     l = +(l * 100).toFixed(1);
 
     const primaryHsl = `${h} ${s}% ${l}%`;
-    document.documentElement.style.setProperty('--primary', primaryHsl);
-    localStorage.setItem("themeColor", primaryHsl);
+    
+    // Chiama la funzione del contesto per salvare il colore
+    updateThemeColor(primaryHsl);
+    
+    // NON impostare localStorage o CSS variable qui
   };
+  // === FINE MODIFICA ===
 
   const openColorPicker = () => {
     colorInputRef.current?.click();
   };
 
 
+  // ... (resto del file: fetch apartments, mutations, etc.) ...
   // Fetch apartments
   const { data: apartments, isLoading: isLoadingApartments } = useQuery<ApartmentWithAssignedEmployees[]>({
     queryKey: [`/api/apartments?sortBy=${sortBy}${searchQuery ? `&search=${searchQuery}` : ''}`],
@@ -81,7 +116,6 @@ export default function Home() {
     mutationFn: (data: ApartmentFormData) => 
       apiRequest('POST', '/api/apartments', data),
     onSuccess: () => {
-      // --- 4. MODIFICA: Specifica quali query invalidare ---
       // === Correzione: usiamo predicate per createApartmentMutation ===
       queryClient.invalidateQueries({ 
         predicate: (query) => 
@@ -103,7 +137,6 @@ export default function Home() {
           typeof query.queryKey[0] === 'string' && 
           query.queryKey[0].startsWith('/api/statistics') 
       });
-      // --- FINE MODIFICA ---
       toast({
         title: "Successo",
         description: "Ordine creato con successo",
@@ -124,7 +157,6 @@ export default function Home() {
     mutationFn: ({ id, data }: { id: number, data: ApartmentFormData }) => 
       apiRequest('PUT', `/api/apartments/${id}`, data),
     onSuccess: () => {
-      // --- 4. MODIFICA: Specifica quali query invalidare ---
       // === Correzione: usiamo predicate per updateApartmentMutation ===
       queryClient.invalidateQueries({ 
         predicate: (query) => 
@@ -146,7 +178,6 @@ export default function Home() {
           typeof query.queryKey[0] === 'string' && 
           query.queryKey[0].startsWith('/api/statistics') 
       });
-      // --- FINE MODIFICA ---
       toast({
         title: "Successo",
         description: "Ordine aggiornato con successo",
@@ -207,6 +238,7 @@ export default function Home() {
     }
   });
 
+
   // Event handlers
   const handleOpenAddModal = () => {
     setCurrentApartment(undefined);
@@ -266,7 +298,12 @@ export default function Home() {
             <input
               ref={colorInputRef}
               type="color"
+              // === INIZIO MODIFICA ===
+              // Usa 'defaultValue' per impostare il valore iniziale
+              // 'value' non funziona bene con 'onChange' per i color picker
+              defaultValue={initialHexColor} 
               onChange={handleColorChange}
+              // === FINE MODIFICA ===
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
           </Button>
@@ -293,6 +330,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ... (resto del JSX: loading, grid, modals) ... */}
       {isLoadingApartments ? (
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

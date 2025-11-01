@@ -1,0 +1,21 @@
+{
+  "short_name": "OrderMaster",
+  "name": "Gestore Ordini",
+  "description": "Applicazione per la gestione di un'agenzia di pulizie di appartamenti.",
+  "icons": [
+    {
+      "src": "/1.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/1.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff"
+}

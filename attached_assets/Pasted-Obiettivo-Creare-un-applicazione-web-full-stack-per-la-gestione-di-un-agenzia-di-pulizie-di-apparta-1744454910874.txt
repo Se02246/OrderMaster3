@@ -1,0 +1,118 @@
+Obiettivo: Creare un'applicazione web full-stack per la gestione di un'agenzia di pulizie di appartamenti. L'applicazione deve permettere di gestire appartamenti (con dettagli su pulizia, stato, pagamento) e dipendenti, con una visualizzazione a calendario.
+Tecnologie richieste:
+Frontend: HTML, CSS, JavaScript (senza framework specifici, per semplicità, o puoi specificare es. React/Vue se preferisci ma aumenta la complessità). Utilizzare il colore #70fad3 per gli elementi principali interattivi (pulsanti "Crea", "Salva", icone se possibile).
+Backend: Node.js con Express.js.
+Database: SQLite (semplice, basato su file, adatto per Replit) o Replit Database (Key-Value, potrebbe richiedere più logica applicativa per le relazioni). Specifichiamo SQLite per gestire meglio le relazioni tra appartamenti e dipendenti.
+Struttura File Suggerita:
+/
+├── public/
+│   ├── index.html
+│   ├── style.css
+│   ├── script.js
+│   └── assets/ (per eventuali icone)
+├── server.js       # Server Express
+├── database.db     # Database SQLite
+└── package.json
+Use code with caution.
+Requisiti Dettagliati:
+1. Database Schema (SQLite):
+Tabella apartments:
+id INTEGER PRIMARY KEY AUTOINCREMENT
+name TEXT NOT NULL
+cleaning_date TEXT NOT NULL (formato 'YYYY-MM-DD')
+start_time TEXT (formato 'HH:MM')
+end_time TEXT (formato 'HH:MM')
+status TEXT CHECK( status IN ('Da Fare', 'In Corso', 'Fatto') ) NOT NULL DEFAULT 'Da Fare'
+payment_status TEXT CHECK( payment_status IN ('Da Pagare', 'Pagato') ) NOT NULL DEFAULT 'Da Pagare'
+notes TEXT
+Tabella employees:
+id INTEGER PRIMARY KEY AUTOINCREMENT
+first_name TEXT NOT NULL
+last_name TEXT NOT NULL
+Tabella assignments (Tabella ponte per relazione Molti-a-Molti):
+id INTEGER PRIMARY KEY AUTOINCREMENT
+apartment_id INTEGER NOT NULL, FOREIGN KEY(apartment_id) REFERENCES apartments(id) ON DELETE CASCADE
+employee_id INTEGER NOT NULL, FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE
+UNIQUE(apartment_id, employee_id) # Evita assegnazioni duplicate
+2. Backend (Node.js/Express/SQLite):
+Configura Express per servire i file statici dalla cartella public.
+Inizializza il database SQLite se non esiste e crea le tabelle.
+Crea i seguenti endpoint API RESTful:
+GET /api/apartments: Recupera tutti gli appartamenti. Accetta query parameters opzionali sortBy=date o sortBy=name per l'ordinamento e search=query per la ricerca (deve cercare in name, notes, status, payment_status, e nomi/cognomi dei dipendenti associati).
+GET /api/apartments/:id: Recupera i dettagli di un singolo appartamento, inclusi i dipendenti assegnati.
+POST /api/apartments: Crea un nuovo appartamento. Il body della richiesta conterrà i dati del form (inclusa una lista di employee_ids da assegnare). Crea le relative voci nella tabella assignments.
+PUT /api/apartments/:id: Aggiorna un appartamento esistente. Aggiorna i dati dell'appartamento e le assegnazioni dei dipendenti (potrebbe essere necessario cancellare le vecchie assegnazioni e creare le nuove per quell'appartamento).
+DELETE /api/apartments/:id: Elimina un appartamento (le assegnazioni verranno eliminate automaticamente grazie a ON DELETE CASCADE).
+GET /api/employees: Recupera tutti i dipendenti. Accetta search=query per cercare per first_name o last_name.
+GET /api/employees/:id: Recupera i dettagli di un dipendente, inclusi gli appartamenti a cui è stato assegnato.
+POST /api/employees: Crea un nuovo dipendente.
+DELETE /api/employees/:id: Elimina un dipendente (Opzionale: decidere cosa fare con le assegnazioni passate, per ora lasciamo che ON DELETE CASCADE rimuova le assegnazioni future se necessario, ma potrebbe essere meglio impedire l'eliminazione se ci sono assegnazioni attive/future o semplicemente renderlo "inattivo"). Consideriamo per ora l'eliminazione semplice.
+GET /api/calendar/:year/:month: Recupera tutti gli appartamenti la cui cleaning_date cade nel mese e anno specificati.
+GET /api/calendar/:year/:month/:day: Recupera tutti gli appartamenti la cui cleaning_date corrisponde esattamente al giorno, mese e anno specificati.
+3. Frontend (HTML/CSS/JavaScript):
+Struttura Generale (index.html):
+Header fisso o sticky in alto con icona Hamburger Menu (tre linee orizzontali) a sinistra.
+Area principale (<main>) dove verrà caricato dinamicamente il contenuto delle diverse sezioni (Home, Calendario, Dipendenti).
+Il colore #70fad3 deve essere usato per pulsanti primari ("Crea", "Salva") e potenzialmente per hover/focus su elementi interattivi. I pulsanti "Annulla" devono essere grigi o con stile secondario.
+Menu ad Hamburger:
+Inizialmente nascosto, appare da sinistra cliccando sull'icona.
+Contiene link "HOME", "CALENDARIO", "DIPENDENTI".
+Cliccando su un link:
+Nasconde il menu.
+Aggiorna il contenuto dell'area <main> tramite JavaScript (fetch dei dati necessari dall'API e rendering dell'HTML appropriato) senza ricaricare la pagina (Single Page Application - SPA - behavior).
+Sezione HOME (<main>):
+Titolo "CLEAN SERVICE" (può essere nell'header).
+Barra di ricerca (<input type="search"> + pulsante/icona "CERCA"). L'input scatena una chiamata a GET /api/apartments?search=... all'invio o al cambio.
+Dropdown/pulsanti "ORDINA PER: DATA / NOME". Cambiando l'opzione, si rifà la chiamata a GET /api/apartments?sortBy=....
+Pulsante "AGGIUNGI APPARTAMENTO +" (colore #70fad3). Al click, mostra il Popup/Modal "Aggiungi Appartamento".
+Elenco dinamico degli appartamenti recuperati da GET /api/apartments. Ogni elemento della lista deve mostrare:
+NOME, DATA, STATO, PAGAMENTO.
+Sotto, in piccolo: Nomi dei dipendenti assegnati (recuperati con l'appartamento).
+Icone/Pulsanti "MODIFICA" e "ELIMINA".
+"ELIMINA": Chiede conferma, poi chiama DELETE /api/apartments/:id e aggiorna la lista.
+"MODIFICA": Chiama GET /api/apartments/:id, popola e mostra il Popup/Modal "Aggiungi/Modifica Appartamento" con i dati esistenti e un pulsante "SALVA" invece di "CREA".
+Popup/Modal "Aggiungi/Modifica Appartamento":
+Form con campi:
+NOME APPARTAMENTO (<input type="text">)
+DATA (<input type="date"> - sfrutta il datepicker nativo del browser).
+DA hh:mm (<input type="time"> - sfrutta il timepicker nativo).
+A hh:mm (<input type="time">).
+DIPENDENTI (<select multiple> o lista di checkboxes). Popolato dinamicamente con i dati da GET /api/employees. Deve permettere selezioni multiple.
+STATO (<select> con opzioni 'Da Fare', 'In Corso', 'Fatto').
+PAGAMENTO (<select> con opzioni 'Da Pagare', 'Pagato').
+NOTE... (<textarea>).
+Pulsanti: "CREA" (#70fad3) / "SALVA" (#70fad3) e "ANNULLA" (grigio).
+"CREA": Invia i dati a POST /api/apartments, chiude il popup, aggiorna la lista nella HOME.
+"SALVA": Invia i dati a PUT /api/apartments/:id, chiude il popup, aggiorna la lista nella HOME.
+"ANNULLA": Chiude il popup senza salvare.
+Sezione DIPENDENTI (<main>):
+Titolo "DIPENDENTI".
+Barra di ricerca (<input type="search"> + pulsante/icona "CERCA"). Chiama GET /api/employees?search=....
+Pulsante "AGGIUNGI DIPENDENTI +" (#70fad3). Al click, mostra il Popup/Modal "Aggiungi Dipendente".
+Elenco dinamico dei dipendenti da GET /api/employees. Ogni elemento mostra Nome e Cognome ed è cliccabile.
+Al click su un dipendente, naviga alla schermata "Dettaglio Dipendente" (aggiorna <main>).
+Popup/Modal "Aggiungi Dipendente":
+Form con campi: NOME (<input type="text">), COGNOME (<input type="text">).
+Pulsanti: "CREA" (#70fad3) e "ANNULLA" (grigio).
+"CREA": Invia i dati a POST /api/employees, chiude il popup, aggiorna la lista nella schermata Dipendenti.
+"ANNULLA": Chiude il popup.
+Schermata Dettaglio Dipendente (<main>):
+Mostra NOME COGNOME del dipendente.
+Titolo "APPARTAMENTI CORRELATI".
+Elenco degli appartamenti associati a questo dipendente (recuperati da GET /api/employees/:id). La visualizzazione di ogni appartamento è identica a quella nella HOME (Nome, Data, Stato, Pagamento, altri dipendenti, icone Modifica/Elimina). Le azioni Modifica/Elimina funzionano come nella HOME.
+Sezione CALENDARIO (<main>):
+Controlli per navigare tra MESE e ANNO (es. Frecce < > per il mese, < > per l'anno).
+Griglia del calendario (nomi dei giorni LUN-DOM, box per ogni giorno del mese selezionato).
+Ogni volta che mese/anno cambiano, chiama GET /api/calendar/:year/:month. Usa i dati ricevuti per:
+Indicare visivamente (es. un puntino, background leggero) sui giorni in cui ci sono appartamenti programmati.
+Rendi cliccabile ogni giorno del mese.
+Al click su un giorno, naviga alla schermata "Giorno Specifico" (aggiorna <main>).
+Schermata Giorno Specifico (<main>):
+Mostra la data selezionata GG/MM/AAAA.
+Titolo "APPARTAMENTI CORRELATI".
+Elenco degli appartamenti per quel giorno (recuperati da GET /api/calendar/:year/:month/:day). La visualizzazione e le azioni per ogni appartamento sono identiche a quelle nella HOME.
+Considerazioni Aggiuntive:
+Implementare la gestione degli errori (sia nel backend per le chiamate API, sia nel frontend per mostrare messaggi all'utente).
+Considerare la paginazione se le liste di appartamenti/dipendenti diventano molto lunghe.
+Assicurarsi che l'interfaccia sia ragionevolmente responsive per diverse dimensioni di schermo (almeno desktop e tablet).
+Aggiungere commenti nel codice per spiegare le parti più complesse.

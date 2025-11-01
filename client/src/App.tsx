@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
+// ... (import Pagine e Layout) ...
 // Pagine
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
@@ -19,6 +20,7 @@ import LoginPage from "@/pages/login";
 import Sidebar from "@/components/ui/layout/Sidebar";
 import Header from "@/components/ui/layout/Header";
 
+
 function AppRouter() {
   const [location] = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -28,12 +30,14 @@ function AppRouter() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  // === INIZIO MODIFICA ===
+  // Applica il tema dall'utente loggato
   useEffect(() => {
-    const storedColor = localStorage.getItem("themeColor");
-    if (storedColor) {
-      document.documentElement.style.setProperty("--primary", storedColor);
+    if (user?.theme_color) {
+      document.documentElement.style.setProperty('--primary', user.theme_color);
     }
-  }, []);
+  }, [user?.theme_color]); // Si attiva quando 'user' o 'theme_color' cambiano
+  // === FINE MODIFICA ===
 
   // Finché non sappiamo se l'utente è loggato, non mostriamo nulla (o un caricamento)
   if (isLoading) {
@@ -69,6 +73,7 @@ function AppRouter() {
 
   // L'utente è loggato, mostra l'app principale
   return (
+    // ... (resto del JSX del layout) ...
     <div className="flex h-screen overflow-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
